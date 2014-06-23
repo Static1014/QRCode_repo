@@ -11,6 +11,7 @@
 
 @interface RootViewController () {
     BOOL imageIsUp;
+    ZBarReaderView *readerView;
 }
 
 @end
@@ -30,6 +31,7 @@
     [super viewDidLoad];
     imageIsUp = YES;
     _resultView.editable = NO;
+    [_btnDo setTitle:@"Scan" forState:UIControlStateNormal];
     _resultView.delegate = self;
 
     [_btnDecode setTitleColor:[UIColor blueColor] forState:UIControlStateNormal];
@@ -43,6 +45,9 @@
 }
 
 - (IBAction)clickDecode:(id)sender {
+    _btnDo.enabled = YES;
+    [_btnDo setTitle:@"Scan" forState:UIControlStateNormal];
+    [_btnDo setTitle:@"Scan" forState:UIControlStateDisabled];
     _resultView.text = @"";
     _resultView.editable = NO;
     [_resultView resignFirstResponder];
@@ -55,6 +60,11 @@
 }
 
 - (IBAction)clickEncode:(id)sender {
+    [readerView stop];
+    [readerView removeFromSuperview];
+
+    [_btnDo setTitle:@"Do" forState:UIControlStateNormal];
+    [_btnDo setTitle:@"Do" forState:UIControlStateDisabled];
     _resultView.editable = YES;
     _btnDo.enabled = NO;
     [_resultView resignFirstResponder];
@@ -67,20 +77,63 @@
 }
 
 - (IBAction)clickDo:(id)sender {
+    [_resultView resignFirstResponder];
+
     if (imageIsUp) {
-        ZBarReaderViewController *zbar = [[ZBarReaderViewController alloc]init];
-        [self presentViewController:zbar animated:YES completion:nil];
+        for (UIView *temp in self.view.subviews) {
+            if ([temp isKindOfClass:[ZBarReaderView class]]) {
+                NSLog(@"---------");
+                return;
+            }
+        }
+        [self initScanView];
     } else {
         _imageView.image = [QRCodeGenerator qrImageForString:_resultView.text imageSize:_imageView.frame.size.width];
     }
+}
 
+- (void)initScanView {
+    readerView = [[ZBarReaderView alloc]init];
+//    readerView.frame = CGRectMake(0, 44, self.view.frame.size.width, self.view.frame.size.height - 44);
+    readerView.frame = CGRectMake(60, 100, _imageView.frame.size.width, _imageView.frame.size.height);
+    readerView.readerDelegate = self;
+    //关闭闪光灯
+    readerView.torchMode = 0;
+    //扫描区域
+    readerView.scanCrop = CGRectMake(0, 0, 1, 1);
+//    CGRect scanMaskRect = CGRectMake(60, CGRectGetMidY(readerView.frame) - 126, 200, 200);
+
+    //处理模拟器
+    if (TARGET_IPHONE_SIMULATOR) {
+        ZBarCameraSimulator *cameraSimulator
+        = [[ZBarCameraSimulator alloc]initWithViewController:self];
+        cameraSimulator.readerView = readerView;
+    }
+    [self.view addSubview:readerView];
+    //扫描区域计算
+//    readerView.scanCrop = [self getScanCrop:scanMaskRect readerViewBounds:readerView.bounds];
+
+    [readerView start];
+}
+
+-(CGRect)getScanCrop:(CGRect)rect readerViewBounds:(CGRect)readerViewBounds
+{
+    CGFloat x,y,width,height;
+
+    x = rect.origin.x / readerViewBounds.size.width;
+    y = rect.origin.y / readerViewBounds.size.height;
+    width = rect.size.width / readerViewBounds.size.width;
+    height = rect.size.height / readerViewBounds.size.height;
+
+    return CGRectMake(x, y, width, height);
 }
 
 - (void)readerView:(ZBarReaderView *)readerView didReadSymbols:(ZBarSymbolSet *)symbols fromImage:(UIImage *)image {
-    for (ZBarSymbol *sym in symbols) {
-        _resultView.text = sym.data;
-        NSLog(@"%@",sym.data);
+    for (ZBarSymbol *temp in symbols) {
+        _resultView.text = temp.data;
+        break;
     }
+
 }
 
 - (void)textViewDidChangeSelection:(UITextView *)textView {
